@@ -93,3 +93,14 @@ export const TableContainer = styled.section`
     }
   }
 `;
+
+export const SortButton = styled.button`
+  background: transparent;
+  margin-left: 12px;
+  border: 0;
+
+  svg {
+    padding-top: 16px;
+    color: #969cb3;
+  }
+`;

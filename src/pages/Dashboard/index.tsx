@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
+import { FiChevronDown } from 'react-icons/fi';
 import income from '../../assets/income.svg';
 import outcome from '../../assets/outcome.svg';
 import total from '../../assets/total.svg';
@@ -9,8 +10,15 @@ import api from '../../services/api';
 import Header from '../../components/Header';
 
 import formatValue from '../../utils/formatValue';
+import formatDate from '../../utils/formatDate';
 
-import { Container, CardContainer, Card, TableContainer } from './styles';
+import {
+  Container,
+  CardContainer,
+  Card,
+  TableContainer,
+  SortButton,
+} from './styles';
 
 interface Transaction {
   id: string;
@@ -29,21 +37,85 @@ interface Balance {
   total: string;
 }
 
+interface Accountability {
+  transactions: Transaction[];
+  balance: Balance;
+}
+
+interface SortType {
+  filter: 'title' | 'value' | 'category' | 'date';
+}
+
 const Dashboard: React.FC = () => {
-  // const [transactions, setTransactions] = useState<Transaction[]>([]);
-  // const [balance, setBalance] = useState<Balance>({} as Balance);
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [balance, setBalance] = useState<Balance>({} as Balance);
+  const [sortFilter, setSortFilter] = useState<SortType>({ filter: 'title' });
+
+  const sortTransactionsList = useCallback(
+    ({ filter }: SortType, unsortedTransactions: Transaction[]) => {
+      let sortedTransactions: Transaction[];
+      if (filter === 'title') {
+        sortedTransactions = unsortedTransactions.sort((a, b) => {
+          if (a.title > b.title) return 1;
+          if (a.title < b.title) return -1;
+
+          return 0;
+        });
+      } else if (filter === 'value') {
+        sortedTransactions = unsortedTransactions.sort((a, b) => {
+          if (a.value > b.value) return 1;
+          if (a.value < b.value) return -1;
+
+          return 0;
+        });
+      } else if (filter === 'category') {
+        sortedTransactions = unsortedTransactions.sort((a, b) => {
+          if (a.category > b.category) return 1;
+          if (a.category < b.category) return -1;
+
+          return 0;
+        });
+      } else {
+        sortedTransactions = unsortedTransactions.sort((a, b) => {
+          if (a.created_at > b.created_at) return 1;
+          if (a.created_at < b.created_at) return -1;
+
+          return 0;
+        });
+      }
+
+      setTransactions((state) => [...state, ...sortedTransactions]);
+    },
+    [],
+  );
 
   useEffect(() => {
     async function loadTransactions(): Promise<void> {
-      // TODO
+      const { data } = await api.get<Accountability>('/transactions');
+
+      const parsedTransactions = data.transactions.map((transaction) => ({
+        ...transaction,
+        formattedValue: formatValue(transaction.value),
+        formattedDate: formatDate(new Date(transaction.created_at)),
+      }));
+
+      const parsedBalance: Balance = {
+        income: formatValue(Number(data.balance.income)),
+        outcome: formatValue(Number(data.balance.outcome)),
+        total: formatValue(Number(data.balance.total)),
+      };
+
+      sortTransactionsList({ ...sortFilter }, parsedTransactions);
+      setBalance(parsedBalance);
     }
 
     loadTransactions();
-  }, []);
+  }, [sortTransactionsList, sortFilter]);
 
   return (
     <>
-      <Header />
+      <Header focus="Dashboard" />
       <Container>
         <CardContainer>
           <Card>
@@ -51,21 +123,21 @@ const Dashboard: React.FC = () => {
               <p>Entradas</p>
               <img src={income} alt="Income" />
             </header>
-            <h1 data-testid="balance-income">R$ 5.000,00</h1>
+            <h1 data-testid="balance-income">{balance.income}</h1>
           </Card>
           <Card>
             <header>
               <p>Saídas</p>
               <img src={outcome} alt="Outcome" />
             </header>
-            <h1 data-testid="balance-outcome">R$ 1.000,00</h1>
+            <h1 data-testid="balance-outcome">{balance.outcome}</h1>
           </Card>
           <Card total>
             <header>
               <p>Total</p>
               <img src={total} alt="Total" />
             </header>
-            <h1 data-testid="balance-total">R$ 4000,00</h1>
+            <h1 data-testid="balance-total">{balance.total}</h1>
           </Card>
         </CardContainer>
 
@@ -73,26 +145,46 @@ const Dashboard: React.FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Título</th>
-                <th>Preço</th>
-                <th>Categoria</th>
-                <th>Data</th>
+                <th>
+                  Título
+                  <SortButton>
+                    <FiChevronDown size={30} />
+                  </SortButton>
+                </th>
+
+                <th>
+                  Preço
+                  <SortButton>
+                    <FiChevronDown size={30} />
+                  </SortButton>
+                </th>
+                <th>
+                  Categoria
+                  <SortButton>
+                    <FiChevronDown size={30} />
+                  </SortButton>
+                </th>
+                <th>
+                  Data
+                  <SortButton>
+                    <FiChevronDown size={30} />
+                  </SortButton>
+                </th>
               </tr>
             </thead>
-
             <tbody>
-              <tr>
-                <td className="title">Computer</td>
-                <td className="income">R$ 5.000,00</td>
-                <td>Sell</td>
-                <td>20/04/2020</td>
-              </tr>
-              <tr>
-                <td className="title">Website Hosting</td>
-                <td className="outcome">- R$ 1.000,00</td>
-                <td>Hosting</td>
-                <td>19/04/2020</td>
-              </tr>
+              {transactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  <td className="title">{transaction.title}</td>
+                  <td className={transaction.type}>
+                    {transaction.type === 'outcome'
+                      ? `- ${transaction.formattedValue}`
+                      : transaction.formattedValue}
+                  </td>
+                  <td>{transaction.category.title}</td>
+                  <td>{transaction.formattedDate}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </TableContainer>
